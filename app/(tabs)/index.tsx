@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 type Vocab = {
   id: number;
@@ -118,7 +126,14 @@ const VOCABS: Vocab[] = [
 ];
 
 export default function HomeScreen() {
+  const [words, setWords] = useState<Vocab[]>(VOCABS);
   const [openedWordIds, setOpenedWordIds] = useState<number[] | number | null>([]);
+  const [bookmarkedWordIds, setBookmarkedWordIds] = useState<number[]>([]);
+  const [editingWordId, setEditingWordId] = useState<number | null>(null);
+  const [editTerm, setEditTerm] = useState("");
+  const [editDefinition, setEditDefinition] = useState("");
+  const [editExample, setEditExample] = useState("");
+
   const normalizedOpenedWordIds = Array.isArray(openedWordIds)
     ? openedWordIds
     : openedWordIds === null
@@ -140,6 +155,59 @@ export default function HomeScreen() {
     });
   };
 
+  const closeWord = (id: number) => {
+    setOpenedWordIds((prev) => {
+      const prevIds = Array.isArray(prev) ? prev : prev === null ? [] : [prev];
+      return prevIds.filter((wordId) => wordId !== id);
+    });
+  };
+
+  const toggleBookmark = (id: number) => {
+    setBookmarkedWordIds((prev) =>
+      prev.includes(id) ? prev.filter((wordId) => wordId !== id) : [...prev, id]
+    );
+  };
+
+  const startEdit = (word: Vocab) => {
+    setEditingWordId(word.id);
+    setEditTerm(word.term);
+    setEditDefinition(word.definition);
+    setEditExample(word.example);
+    setOpenedWordIds((prev) => {
+      const prevIds = Array.isArray(prev) ? prev : prev === null ? [] : [prev];
+      return prevIds.includes(word.id) ? prevIds : [...prevIds, word.id];
+    });
+  };
+
+  const cancelEdit = (id?: number) => {
+    setEditingWordId(null);
+    setEditTerm("");
+    setEditDefinition("");
+    setEditExample("");
+    if (typeof id === "number") closeWord(id);
+  };
+
+  const saveEdit = (id: number) => {
+    const nextTerm = editTerm.trim();
+    const nextDefinition = editDefinition.trim();
+    const nextExample = editExample.trim();
+    if (!nextTerm || !nextDefinition || !nextExample) return;
+
+    setWords((prev) =>
+      prev.map((word) =>
+        word.id === id
+          ? {
+              ...word,
+              term: nextTerm,
+              definition: nextDefinition,
+              example: nextExample,
+            }
+          : word
+      )
+    );
+    cancelEdit(id);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -152,23 +220,75 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>단어 리스트</Text>
           <Text style={styles.sectionDescription}>단어를 누르면 뜻과 예문이 펼쳐집니다.</Text>
 
-          {VOCABS.map((vocab) => {
+          {words.map((vocab) => {
             const isOpened = normalizedOpenedWordIds.includes(vocab.id);
+            const isBookmarked = bookmarkedWordIds.includes(vocab.id);
+            const isEditing = editingWordId === vocab.id;
 
             return (
               <View key={vocab.id} style={[styles.listItem, isOpened && styles.listItemOpened]}>
-                <Pressable style={styles.listItemTop} onPress={() => onPressWord(vocab.id)}>
-                  <View>
+                <View style={styles.listItemTop}>
+                  <Pressable style={styles.wordInfoButton} onPress={() => onPressWord(vocab.id)}>
                     <Text style={styles.listWordText}>{vocab.term}</Text>
                     <Text style={styles.listSubText}>난이도: {getLevelLabel(vocab.level)}</Text>
+                  </Pressable>
+                  <View style={styles.actions}>
+                    <Pressable
+                      style={styles.iconButton}
+                      onPress={() => toggleBookmark(vocab.id)}
+                    >
+                      <Text style={styles.iconText}>{isBookmarked ? "★" : "☆"}</Text>
+                    </Pressable>
+                    <Pressable style={styles.iconButton} onPress={() => startEdit(vocab)}>
+                      <Text style={styles.moreText}>...</Text>
+                    </Pressable>
                   </View>
-                  <Text style={styles.toggleText}>{isOpened ? "접기" : "보기"}</Text>
-                </Pressable>
+                </View>
 
                 {isOpened ? (
-                  <View style={styles.detailBox}>
+                  <Pressable style={styles.detailBox} onPress={() => closeWord(vocab.id)}>
                     <Text style={styles.definitionText}>뜻: {vocab.definition}</Text>
                     <Text style={styles.exampleText}>예문: {vocab.example}</Text>
+                  </Pressable>
+                ) : null}
+
+                {isEditing ? (
+                  <View style={styles.editBox}>
+                    <Text style={styles.editLabel}>단어</Text>
+                    <TextInput
+                      value={editTerm}
+                      onChangeText={setEditTerm}
+                      style={styles.input}
+                      placeholder="단어를 입력하세요"
+                      placeholderTextColor="#8D8478"
+                    />
+                    <Text style={styles.editLabel}>뜻</Text>
+                    <TextInput
+                      value={editDefinition}
+                      onChangeText={setEditDefinition}
+                      style={styles.input}
+                      placeholder="뜻을 입력하세요"
+                      placeholderTextColor="#8D8478"
+                    />
+                    <Text style={styles.editLabel}>예문</Text>
+                    <TextInput
+                      value={editExample}
+                      onChangeText={setEditExample}
+                      style={styles.input}
+                      placeholder="예문을 입력하세요"
+                      placeholderTextColor="#8D8478"
+                    />
+                    <View style={styles.editActions}>
+                      <Pressable style={[styles.editActionButton, styles.saveButton]} onPress={() => saveEdit(vocab.id)}>
+                        <Text style={styles.saveButtonText}>저장</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.editActionButton, styles.cancelButton]}
+                        onPress={() => cancelEdit(vocab.id)}
+                      >
+                        <Text style={styles.cancelButtonText}>취소</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 ) : null}
               </View>
@@ -241,7 +361,11 @@ const styles = StyleSheet.create({
   listItemTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+  },
+  wordInfoButton: {
+    flex: 1,
+    paddingRight: 8,
   },
   listWordText: {
     fontSize: 18,
@@ -253,10 +377,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#665E53",
   },
-  toggleText: {
-    fontSize: 13,
-    color: "#2B2B2B",
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  iconButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#EEE6D8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconText: {
+    fontSize: 16,
+    color: "#1A1A1A",
     fontWeight: "700",
+  },
+  moreText: {
+    fontSize: 16,
+    color: "#1A1A1A",
+    fontWeight: "800",
+    marginTop: -6,
   },
   detailBox: {
     marginTop: 12,
@@ -274,5 +417,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#555149",
     fontStyle: "italic",
+  },
+  editBox: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#D8CEBD",
+  },
+  editLabel: {
+    marginBottom: 4,
+    fontSize: 12,
+    color: "#4E463C",
+    fontWeight: "700",
+  },
+  input: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#D8CEBD",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+    color: "#111111",
+  },
+  editActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 2,
+  },
+  editActionButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  saveButton: {
+    backgroundColor: "#111111",
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  cancelButton: {
+    backgroundColor: "#E6DDCF",
+  },
+  cancelButtonText: {
+    color: "#1A1A1A",
+    fontWeight: "700",
   },
 });
